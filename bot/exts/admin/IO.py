@@ -9,7 +9,6 @@ from discord.utils import format_dt
 
 from bot.utils.checks import is_admin
 from bot.utils.extensions import EXTENSIONS
-from bot.constants import DEBUG_SERVER_ID
 
 
 OPT_EXTS = [e.split('.')[-1] for e in EXTENSIONS]
@@ -19,7 +18,7 @@ class AdminIO(commands.Cog):
         self.bot = bot
         self.extension_state = []
 
-    @slash_command(name="reload", guild_ids=(DEBUG_SERVER_ID,))
+    @slash_command(name="reload")
     @commands.check(is_admin)
     async def reload_cog(
         self,
@@ -39,7 +38,7 @@ class AdminIO(commands.Cog):
                 return
         await ctx.respond("❎", ephemeral=True)
 
-    @slash_command(name="restart", guild_ids=(DEBUG_SERVER_ID,))
+    @slash_command(name="restart")
     @commands.check(is_admin)
     async def restart(self, ctx: ApplicationContext):
         """
