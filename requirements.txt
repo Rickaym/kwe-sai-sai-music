@@ -1,0 +1,5 @@
+pynacl
+PyYaml
+psutil
+python-dotenv
+git+https://github.com/Pycord-Development/pycord

@@ -1,0 +1,17 @@
+# Global bot attributes
+bot:
+  prefix: "!"
+  admins: [368671236370464769]
+  debug: true
+  debug_server_id: 805782778473611315
+
+# Consistent styling
+style:
+  default: 0x2F3136
+  exception: 0x880808
+  sunshine: 0xFFDF00
+  deepblue: 0x00aced
+
+# Links and prompts
+props:
+  ...
