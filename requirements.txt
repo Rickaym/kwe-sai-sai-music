@@ -2,4 +2,6 @@ pynacl
 PyYaml
 psutil
 python-dotenv
-git+https://github.com/Pycord-Development/pycord
+py-cord
+py-cord[voice]
+git+https://github.com/ytdl-org/youtube-dl.git@master#egg=youtube_dl

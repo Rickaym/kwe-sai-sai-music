@@ -70,7 +70,7 @@ def in_channel(ctx):
 
 
 class Music(commands.Cog):
-    ffmpeg_executable = "bot/utils/" + ("ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg")
+    ffmpeg_executable = "bot/utils/ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
     ffmpeg_pre = {
         "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
         "options": "-vn",
