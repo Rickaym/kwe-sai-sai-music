@@ -3,7 +3,7 @@ bot:
   prefix: "!"
   admins: [368671236370464769]
   debug: true
-  debug_server_id: 805782778473611315
+  debug_server_ids: [805782778473611315, 821324526154809375]
 
 # Consistent styling
 style:

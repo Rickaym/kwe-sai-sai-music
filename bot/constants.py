@@ -14,7 +14,7 @@ load_dotenv()
 with open("config.yaml", "r") as file:
     CONFIGURATION = load(file, Loader=SafeLoader)
 
-DEBUG_SERVER_ID: int = CONFIGURATION["bot"]["debug_server_id"]
+DEBUG_SERVER_IDS: int = CONFIGURATION["bot"]["debug_server_ids"]
 ADMINS_ID_LIST: List[int] = CONFIGURATION["bot"]["admins"]
 PREFIX: str = CONFIGURATION["bot"]["prefix"]
 DISCORD_TOKEN: str = getenv("TOKEN")
