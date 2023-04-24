@@ -303,7 +303,7 @@ class Music(commands.Cog):
         ကွီးရဲ့သံစဉ်နားထောင်ရန်
         """
         print(f"[{ctx.guild.name}] {ctx.author.name} is playing {track}")
-        await ctx.defer(ephemeral=True)
+        await ctx.defer()
         if track.startswith("https://open.spotify.com/"):
             prelude = await self.search_spotify(ctx.author, track)
             # setup session with a recommendation based queue
@@ -348,7 +348,7 @@ class Music(commands.Cog):
             session.controller = await ctx.respond(embed=embed)
         else:
             await session.controller.edit(content="", embed=embed)
-            await ctx.respond("အိုကေ။", ephemeral=True)
+            await ctx.respond("အိုကေ။")
 
     @slash_command(name="queue")
     @commands.check(get_voice_checker(within_same_channel=False, connection=False))

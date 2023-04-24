@@ -5,3 +5,4 @@ python-dotenv
 py-cord
 py-cord[voice]
 git+https://github.com/ytdl-org/youtube-dl.git@master#egg=youtube_dl
+spotipy
