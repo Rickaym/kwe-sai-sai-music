@@ -366,11 +366,10 @@ class Music(commands.Cog):
             self.queues[ctx.guild.id].add(*prelude)
             session = self.queues[ctx.guild.id]
 
-        embed = session.get_queue_embed()
         if session.controller is None:
-            session.controller = await ctx.respond(embed=embed)
+            session.controller = await ctx.respond(embed=session.get_queue_embed())
         else:
-            await session.controller.edit(content="", embed=embed)
+            await session.update_controller()
             await ctx.respond("အိုကေ။")
 
     @slash_command(name="queue")

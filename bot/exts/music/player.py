@@ -5,14 +5,15 @@ from youtube_dl import YoutubeDL
 from discord.channel import TextChannel, VoiceChannel
 from discord.commands import ApplicationContext
 from discord.guild import Guild
-from discord import Embed, Color, VoiceClient
+from discord import Embed, VoiceClient
 from discord.webhook import WebhookMessage
+from discord.interactions import Interaction
 from discord.member import Member
 
 from enum import Enum
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import List, Optional, Union
 
 NORMAL = 0
 LOOP = 1
@@ -68,9 +69,7 @@ class Track:
                 info = ydl.extract_info(  # type: ignore
                     f"ytsearch:{self.title}",
                     download=False,
-                )["entries"][
-                    0
-                ]
+                )["entries"][0]
             print(f"[YouTube] Found YouTube video {info['title']}.")
             self._source = info["url"]  # type: ignore
         else:
@@ -134,7 +133,7 @@ class MusicSession:
         self.cmd_channel: TextChannel = ctx.channel
         self.commander: Member = ctx.author
         self.volume = 0.5
-        self.controller: Optional[WebhookMessage] = None
+        self.controller: Optional[Union[WebhookMessage, Interaction]] = None
 
         self._voice_client = None
         self._play_style: int = NORMAL
@@ -219,7 +218,6 @@ class MusicSession:
         else:
             self.queue.extend(tracks)
 
-
     def next_track(self):
         self._started_song_at = datetime.utcnow()
         if self._play_style == NORMAL:
@@ -263,10 +261,17 @@ class MusicSession:
             await self._voice_client.move_to(self.voice_channel)
 
     async def update_controller(self):
-        await self.controller.edit(content="", embed=self.get_queue_embed())  # type: ignore
+        if not self.controller:
+            return
+        if isinstance(self.controller, WebhookMessage):
+            await self.controller.edit(content="", embed=self.get_queue_embed())  # type: ignore
+        else:
+            await self.controller.edit_original_response(
+                content="", embed=self.get_queue_embed()
+            )
 
     def get_queue_embed(self) -> Embed:
-        embed = Embed(color=0x0074ba)
+        embed = Embed(color=0x0074BA)
 
         progress_bar = ["―"] * 34
         try:
@@ -312,11 +317,19 @@ class MusicSession:
 
         for i in range(start, end):
             track = self.queue[i]
-            queue += f"{i+1}. {track.title} ||{':'.join(self.format_duration(track.duration))}||  *({track.requested_by})*\n"
+            row = f"{i+1}. {track.title} ||{':'.join(self.format_duration(track.duration))}|| *({track.requested_by})*\n"
+            if i == self.at:
+                queue += f"**{row}**"
+            else:
+                queue += row
 
-        remainder = len(self.queue)-end
+        remainder = len(self.queue) - end
 
-        embed.add_field(name="\n🧳 Queue", value=f"{queue}{f'... and {remainder} more.' if remainder >= 1 else ''}", inline=False)
+        embed.add_field(
+            name="\n🧳 Queue",
+            value=f"{queue}{f'... and {remainder} more.' if remainder >= 1 else ''}",
+            inline=False,
+        )
         if self.auto_queue:
             embed.set_footer(text=f"🔁 Auto queue is enabled.")
         return embed
