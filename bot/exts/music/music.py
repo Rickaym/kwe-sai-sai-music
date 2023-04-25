@@ -70,7 +70,9 @@ def in_channel(ctx):
 
 
 class Music(commands.Cog):
-    ffmpeg_executable = "bot/utils/ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
+    ffmpeg_executable = (
+        "bot/utils/ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
+    )
     ffmpeg_pre = {
         "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
         "options": "-vn",
@@ -168,11 +170,17 @@ class Music(commands.Cog):
 
     async def check_session_queue(self, session: MusicSession):
         if session.auto_queue and session.at + 2 >= len(session.queue):
-            print(f"[{session.ctx.guild.name}] Currently at {session.at}/{len(session.queue)} so adding 3 recommendations.")
+            print(
+                f"[{session.ctx.guild.name}] Currently at {session.at}/{len(session.queue)} so adding 3 recommendations."
+            )
 
-            session.add(*(await self.get_recommendations(session.commander, session.queue)))
+            session.add(
+                *(await self.get_recommendations(session.commander, session.queue))
+            )
             await session.update_controller()
-            print(f"[{session.ctx.guild.name}] Added 3 recommendations, tracks totalling {len(session.queue)} now.")
+            print(
+                f"[{session.ctx.guild.name}] Added 3 recommendations, tracks totalling {len(session.queue)} now."
+            )
 
     async def play_next(self, guild: Guild):
         """
@@ -195,8 +203,12 @@ class Music(commands.Cog):
                 session._schedule = [None, None]
             else:
                 session.next_track()
-                asyncio.run_coroutine_threadsafe(self.check_session_queue(session), self.bot.loop)
-                asyncio.run_coroutine_threadsafe(session.update_controller(), self.bot.loop)
+                asyncio.run_coroutine_threadsafe(
+                    self.check_session_queue(session), self.bot.loop
+                )
+                asyncio.run_coroutine_threadsafe(
+                    session.update_controller(), self.bot.loop
+                )
                 upcoming = session.upcoming_track
                 if upcoming and upcoming.type is TrackType.SPOTIFY:
                     # prefetching upcoming track source
@@ -273,7 +285,9 @@ class Music(commands.Cog):
                 _tracks = tracks
 
             track_ids = [track.id for track in _tracks]
-            print(f"[Spotify] Getting recommendations for auto-queue based on {len(track_ids)} tracks.")
+            print(
+                f"[Spotify] Getting recommendations for auto-queue based on {len(track_ids)} tracks."
+            )
 
             tlist = [self.spotify._get_id("track", t) for t in track_ids]
             audio_features = self.spotify._get("audio-features?ids=" + ",".join(tlist))["audio_features"]  # type: ignore
@@ -298,7 +312,9 @@ class Music(commands.Cog):
             # Generate song recommendations based on the average audio features of the tracks in the playlist
             print(f"[Spotify] Recommending {len(queue)} tracks as auto-queue.")
 
-            return [Track.spotify(track, commander, auto_queued=True) for track in queue]
+            return [
+                Track.spotify(track, commander, auto_queued=True) for track in queue
+            ]
 
         return await self.bot.loop.run_in_executor(None, sync_get_recommendations)
 
@@ -370,6 +386,35 @@ class Music(commands.Cog):
 
         embed = session.get_queue_embed()
         session.controller = await ctx.respond(embed=embed)
+
+    @slash_command(name="save")
+    @commands.check(get_voice_checker())
+    async def save_song(self, ctx):
+        """
+        သံစဉ်ကိုသိမ်းရန်။
+        """
+        session = self.queues.get(ctx.guild.id)
+        if session is None:
+            await ctx.respond("ငါ့မှာသိမ်းစရာမရှိပါ။")
+            return
+
+        embed = discord.Embed(
+            description=f"⏲️ Duration: `{':'.join(session.format_duration(session.now_playing.duration))}`\n📡 Requested By: `{session.now_playing.commander.name}#{session.now_playing.commander.discriminator}`",
+            color=0xFFD983,
+        )
+        embed.set_thumbnail(
+            url="https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f4bd.png"
+        )
+        embed.set_author(name=session.now_playing.title, url=session.now_playing.url)
+        embed.set_image(url=session.now_playing.thumbnail)
+        try:
+            await ctx.author.send(embed=embed)
+        except discord.errors.Forbidden:
+            await ctx.respond(content="DM အရင်ဖွင့်ပြီးမှငါ့လာပြော။")
+        else:
+            await ctx.respond(
+                content="📬 မင်းရဲ့ DM ထဲ့ကို slide ထိုးသိမ်းလိုက်ပြီ။",
+            )
 
     @slash_command(name="disconnect")
     @commands.check(get_voice_checker())

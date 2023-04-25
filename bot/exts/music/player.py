@@ -22,7 +22,7 @@ STYLE_MAP = {0: "Normal", 1: "Loop", 2: "Shuffle"}
 SEEK = 0x6335
 
 YDL_PRESET = {
-    "format": "bestaudio/best",
+    "format": "bestaudio",
     "restrictfilenames": True,
     "noplaylist": True,
     "nocheckcertificate": True,
@@ -275,13 +275,13 @@ class MusicSession:
             progress_bar[-1] = "🔵"
 
         embed.description = (
-            f" ```cmd\n%s {''.join(progress_bar)} | {':'.join(self.get_duration(self.now_duration))}/{':'.join(self.get_duration(self.now_playing.duration))} |```\n"
+            f" ```cmd\n%s {''.join(progress_bar)} | {':'.join(self.format_duration(self.now_duration))}/{':'.join(self.format_duration(self.now_playing.duration))} |```\n"
             % ("▶" if self.voice_client.is_playing() else "⏸")
         )
         embed.set_author(
             name=f"𝖭𝖮𝖶 𝖯𝖫𝖠𝖸𝖨𝖭𝖦 🎵 {self.now_playing.title} 🎵",
         )
-        t_hor, t_min, t_sec = self.get_duration(self.total_time())
+        t_hor, t_min, t_sec = self.format_duration(self.total_time())
         embed.add_field(name="⏰ Total Duration", value=f"`{t_hor}:{t_min}:{t_sec}`")
         embed.add_field(
             name="Loop",
@@ -312,7 +312,7 @@ class MusicSession:
 
         for i in range(start, end):
             track = self.queue[i]
-            queue += f"{i+1}. {track.title} ||{':'.join(self.get_duration(track.duration))}||  *({track.requested_by})*\n"
+            queue += f"{i+1}. {track.title} ||{':'.join(self.format_duration(track.duration))}||  *({track.requested_by})*\n"
 
         remainder = len(self.queue)-end
 
@@ -321,7 +321,7 @@ class MusicSession:
             embed.set_footer(text=f"🔁 Auto queue is enabled.")
         return embed
 
-    def get_duration(self, seconds):
+    def format_duration(self, seconds):
         sec = seconds
         min = 0
         hor = 0
