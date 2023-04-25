@@ -14,6 +14,7 @@ from discord.commands import slash_command, Option
 from discord.ext import commands
 from spotipy.oauth2 import SpotifyClientCredentials
 from spotipy import Spotify
+from os import getenv
 
 from bot.exts.music.player import LOOP, SEEK, Track, MusicSession, YDL_PRESET, TrackType
 
@@ -85,11 +86,9 @@ class Music(commands.Cog):
 
         self.queues: Dict[int, MusicSession] = {}
 
-        client_id = "6b51a0d83e2a44a098b4d4b6c7041f18"
-        client_secret = "a9fc0ddac96c4dac8f4e9abda8c31bec"
-
         client_credentials_manager = SpotifyClientCredentials(
-            client_id=client_id, client_secret=client_secret
+            client_id=getenv("SPOTIFY_CLIENT_ID"),
+            client_secret=getenv("SPOTIFY_CLIENT_SECRET"),
         )
 
         self.spotify = Spotify(client_credentials_manager=client_credentials_manager)
@@ -153,7 +152,7 @@ class Music(commands.Cog):
         """
         ကျောခြင်းခွခြင်း။
         """
-        await ctx.defer()
+        await ctx.defer(ephemeral=True)
         session = self.queues.get(ctx.guild.id)
         if session is None:
             await ctx.respond("skip ဖို့သီချင်းအရင်ဖွင့်လေကွာ။")
@@ -302,6 +301,11 @@ class Music(commands.Cog):
 
             if len(track_ids) > 5:
                 track_ids = track_ids[:5]
+
+            print(
+                f"[Spotify] Generated average audio features based on the tracks."
+            )
+
             queue = self.spotify.recommendations(  # type: ignore
                 seed_tracks=track_ids,
                 target_danceability=avg_features["danceability"],
