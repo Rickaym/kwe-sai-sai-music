@@ -15,7 +15,7 @@ from discord.ext import commands
 from spotipy.oauth2 import SpotifyClientCredentials
 from spotipy import Spotify
 
-from bot.exts.music.player import LOOP, SEEK, Track, MusicSession, YDL_PRESET
+from bot.exts.music.player import LOOP, SEEK, Track, MusicSession, YDL_PRESET, TrackType
 
 """
 By Ricky MY
@@ -197,6 +197,10 @@ class Music(commands.Cog):
                 session.next_track()
                 asyncio.run_coroutine_threadsafe(self.check_session_queue(session), self.bot.loop)
                 asyncio.run_coroutine_threadsafe(session.update_controller(), self.bot.loop)
+                upcoming = session.upcoming_track
+                if upcoming and upcoming.type is TrackType.SPOTIFY:
+                    # prefetching upcoming track source
+                    self.bot.loop.run_in_executor(None, upcoming.prefetch)
 
             source = discord.PCMVolumeTransformer(
                 discord.FFmpegPCMAudio(

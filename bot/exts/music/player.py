@@ -60,23 +60,26 @@ class Track:
         """
         Initializes source object in advance.
         """
-        if self._source is None:
-            print(f"[YouTube] Getting source for a spotify track {self.title}.")
-            if self.type is TrackType.SPOTIFY:
-                with YoutubeDL(YDL_PRESET) as ydl:
-                    info = ydl.extract_info(  # type: ignore
-                        f"ytsearch:{self.title}",
-                        download=False,
-                    )["entries"][
-                        0
-                    ]
-                print(f"[YouTube] Found YouTube video {info['title']}.")
-                self._source = info["url"]  # type: ignore
-            else:
-                raise Exception(f"Unrecoginized {self.type} to get source from.")
+        if self._source is not None:
+            raise Exception(f"{self.type} source is alread defined to be prefetched.")
+        print(f"[YouTube] Getting source for a spotify track {self.title}.")
+        if self.type is TrackType.SPOTIFY:
+            with YoutubeDL(YDL_PRESET) as ydl:
+                info = ydl.extract_info(  # type: ignore
+                    f"ytsearch:{self.title}",
+                    download=False,
+                )["entries"][
+                    0
+                ]
+            print(f"[YouTube] Found YouTube video {info['title']}.")
+            self._source = info["url"]  # type: ignore
+        else:
+            raise Exception(f"Unrecoginized {self.type} to get source from.")
 
     @property
     def source(self) -> str:
+        if self._source is None:
+            self.prefetch()
         return self._source
 
     @staticmethod
@@ -162,7 +165,7 @@ class MusicSession:
         return self.queue[self.at]
 
     @property
-    def next(self) -> Optional[Track]:
+    def upcoming_track(self) -> Optional[Track]:
         """
         Returns the track that is second in queue
         """
@@ -295,8 +298,8 @@ class MusicSession:
         )
         embed.add_field(
             name="Next-Up",
-            value=self.next.title[:8] + "..."
-            if self.next is not None
+            value=self.upcoming_track.title[:8] + "..."
+            if self.upcoming_track is not None
             else f"`{'🚫':^9}`",
         )
         embed.add_field(name="Requested By", value=self.now_playing.requested_by)
