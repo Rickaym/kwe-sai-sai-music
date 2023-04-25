@@ -283,7 +283,9 @@ class Music(commands.Cog):
             else:
                 _tracks = tracks
 
-            track_ids = list(set(track.id for track in _tracks))
+            track_ids = list(
+                set(track.id for track in _tracks if track.type is TrackType.SPOTIFY)
+            )
             print(
                 f"[Spotify] Getting recommendations for auto-queue based on {len(track_ids)} tracks."
             )
@@ -302,9 +304,7 @@ class Music(commands.Cog):
             if len(track_ids) > 5:
                 track_ids = track_ids[:5]
 
-            print(
-                f"[Spotify] Generated average audio features based on the tracks."
-            )
+            print(f"[Spotify] Generated average audio features based on the tracks.")
 
             queue = self.spotify.recommendations(  # type: ignore
                 seed_tracks=track_ids,
@@ -431,7 +431,11 @@ class Music(commands.Cog):
             return
 
         await session.disconnect()
-        self.queues.pop(ctx.guild.id)
+        try:
+            self.queues.pop(ctx.guild.id)
+        except KeyError:
+            pass
+
         await ctx.respond("ဘိုင်းဘိုင်း ငမွှထိုး။")
 
     @slash_command(name="pause")
