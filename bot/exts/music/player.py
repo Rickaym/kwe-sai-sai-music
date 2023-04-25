@@ -317,7 +317,7 @@ class MusicSession:
 
         for i in range(start, end):
             track = self.queue[i]
-            row = f"{i+1}. {track.title} ||{':'.join(self.format_duration(track.duration))}|| *({track.requested_by})*\n"
+            row = f"{i+1}. [{track.title}]({track.url}) ||{':'.join(self.format_duration(track.duration))}|| *({track.requested_by})*\n"
             if i == self.at:
                 queue += f"**{row}**"
             else:
