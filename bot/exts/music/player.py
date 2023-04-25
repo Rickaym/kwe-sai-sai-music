@@ -56,14 +56,16 @@ class Track:
     _partial: bool = False
     _source: Optional[str] = None  # to pass in a predefined source
 
-    @property
-    def source(self) -> str:
+    def prefetch(self):
+        """
+        Initializes source object in advance.
+        """
         if self._source is None:
             print(f"[YouTube] Getting source for a spotify track {self.title}.")
             if self.type is TrackType.SPOTIFY:
                 with YoutubeDL(YDL_PRESET) as ydl:
                     info = ydl.extract_info(  # type: ignore
-                        f"ytsearch:{self.title} {'by '.join(self.artists) if self.artists else ''}",
+                        f"ytsearch:{self.title}",
                         download=False,
                     )["entries"][
                         0
@@ -72,6 +74,9 @@ class Track:
                 self._source = info["url"]  # type: ignore
             else:
                 raise Exception(f"Unrecoginized {self.type} to get source from.")
+
+    @property
+    def source(self) -> str:
         return self._source
 
     @staticmethod
@@ -79,9 +84,10 @@ class Track:
         # Recommended track object dicts do not come under "track" key but
         # normal track objects do.
         info = track.get("track", track)
+        artists = [artist["name"] for artist in info["artists"]]
         return Track(
-            title=info["name"],
-            artists=[artist["name"] for artist in info["artists"]],
+            title=f"{info['name']} - {', '.join(artists) if artists else ''}",
+            artists=artists,
             url=info["external_urls"]["spotify"],
             thumbnail=info["album"]["images"][0]["url"],
             duration=info["duration_ms"] // 1000,
@@ -161,7 +167,7 @@ class MusicSession:
         Returns the track that is second in queue
         """
         if self._play_style == NORMAL:
-            if len(self.queue) >= self.at + 1:
+            if self.at + 1 >= len(self.queue):
                 return None
             return self.queue[self.at + 1]
         else:
@@ -184,7 +190,7 @@ class MusicSession:
         return self.guild.me.voice
 
     @property
-    def playables(self):
+    def remaining_tracks(self):
         return [track for i, track in enumerate(self.queue) if i >= self.at]
 
     def start_queue(self):
@@ -198,7 +204,7 @@ class MusicSession:
         self.at = 0
 
     def total_time(self) -> int:
-        return sum(t.duration for t in self.playables)
+        return sum(t.duration for t in self.remaining_tracks)
 
     def place(self, track) -> int:
         return self.queue.index(track)
@@ -297,12 +303,15 @@ class MusicSession:
 
         queue = ""
         i = 0
-        for i, song in enumerate(self.queue):
-            if abs(self.at - i) >= 3:
-                break
-            queue += f"{i+1}. {song.title} ||{':'.join(self.get_duration(song.duration))}||  *({song.requested_by})*\n"
 
-        remainder = len(self.queue)-(i+1)
+        start = max(self.at - 2, 0)
+        end = min(self.at + 3, len(self.queue))
+
+        for i in range(start, end):
+            track = self.queue[i]
+            queue += f"{i+1}. {track.title} ||{':'.join(self.get_duration(track.duration))}||  *({track.requested_by})*\n"
+
+        remainder = len(self.queue)-end
 
         embed.add_field(name="\n🧳 Queue", value=f"{queue}{f'... and {remainder} more.' if remainder >= 1 else ''}", inline=False)
         if self.auto_queue:

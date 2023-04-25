@@ -151,9 +151,10 @@ class Music(commands.Cog):
         """
         ကျောခြင်းခွခြင်း။
         """
+        await ctx.defer()
         session = self.queues.get(ctx.guild.id)
         if session is None:
-            await ctx.respond("မ skip ခင်သီချင်းအရင်ဖွင့်လေကွာ။")
+            await ctx.respond("skip ဖို့သီချင်းအရင်ဖွင့်လေကွာ။")
             return
 
         try:
@@ -163,15 +164,15 @@ class Music(commands.Cog):
             return
 
         session.voice_client.stop()
-        await ctx.respond("အိုကေ။", ephemeral=True)
+        await ctx.respond("အိုကေ။")
 
     async def check_session_queue(self, session: MusicSession):
-        if session.auto_queue and session.at + 2 >= len(session.playables):
-            print(f"[{session.ctx.guild.name}] Currently at {session.at}/{len(session.playables)} so adding 3 recommendations.")
+        if session.auto_queue and session.at + 2 >= len(session.queue):
+            print(f"[{session.ctx.guild.name}] Currently at {session.at}/{len(session.queue)} so adding 3 recommendations.")
 
-        session.add(*(await self.get_recommendations(session.commander, session.playables)))
-        await session.update_controller()
-        print(f"[{session.ctx.guild.name}] Added 3 recommendations, tracks totalling {len(session.playables)} now.")
+            session.add(*(await self.get_recommendations(session.commander, session.queue)))
+            await session.update_controller()
+            print(f"[{session.ctx.guild.name}] Added 3 recommendations, tracks totalling {len(session.queue)} now.")
 
     async def play_next(self, guild: Guild):
         """
@@ -182,7 +183,7 @@ class Music(commands.Cog):
         if session is None:
             return
         elif (
-            len(session.playables) > 1
+            len(session.remaining_tracks) > 1
             or session.style == LOOP
             or session._schedule[0] is not None
         ):  # There are still songs left to be played.
@@ -195,6 +196,7 @@ class Music(commands.Cog):
             else:
                 session.next_track()
                 asyncio.run_coroutine_threadsafe(self.check_session_queue(session), self.bot.loop)
+                asyncio.run_coroutine_threadsafe(session.update_controller(), self.bot.loop)
 
             source = discord.PCMVolumeTransformer(
                 discord.FFmpegPCMAudio(
@@ -224,7 +226,7 @@ class Music(commands.Cog):
                 )
         else:  # There are no more songs left to be played.
             time.sleep(10)
-            if not (len(session.playables) > 1 or session.style == LOOP):
+            if not (len(session.remaining_tracks) > 1 or session.style == LOOP):
                 print(f"[Move] Job {guild.id} finished")
                 await session.disconnect()
                 if self.queues.get(guild.id) is not None:
@@ -308,6 +310,7 @@ class Music(commands.Cog):
             prelude = await self.search_spotify(ctx.author, track)
             # setup session with a recommendation based queue
             if auto_queue:
+                print("[Spotify] Starting auto-queue mode. Getting recommendations.")
                 prelude = await self.get_recommendations(ctx.author, prelude)
         else:
             if track.startswith("https"):
