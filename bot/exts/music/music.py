@@ -152,7 +152,7 @@ class Music(commands.Cog):
         """
         ကျောခြင်းခွခြင်း။
         """
-        await ctx.defer(ephemeral=True)
+        await ctx.defer()
         session = self.queues.get(ctx.guild.id)
         if session is None:
             await ctx.respond("skip ဖို့သီချင်းအရင်ဖွင့်လေကွာ။")
@@ -283,7 +283,7 @@ class Music(commands.Cog):
             else:
                 _tracks = tracks
 
-            track_ids = [track.id for track in _tracks]
+            track_ids = list(set(track.id for track in _tracks))
             print(
                 f"[Spotify] Getting recommendations for auto-queue based on {len(track_ids)} tracks."
             )
