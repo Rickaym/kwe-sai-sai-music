@@ -154,7 +154,7 @@ class Music(commands.Cog):
 
     @slash_command(name="skip")
     @commands.check(get_voice_checker())
-    async def skip(self, ctx, amount: Option(int, default=1, required=False)): # type: ignore
+    async def skip(self, ctx, amount: Option(int, default=1, description="ကျော်ခြင်သော သံစဉ်ခု။", required=False)):  # type: ignore
         """
         ကျောခြင်းခွခြင်း။
         """
@@ -217,7 +217,9 @@ class Music(commands.Cog):
                 upcoming = session.upcoming_track
                 if upcoming and upcoming.type is TrackType.SPOTIFY:
                     # prefetching upcoming track source & audio features
-                    upcoming.load_all(self.spotify)
+                    self.bot.loop.run_in_executor(
+                        None, upcoming.load_all, self.spotify
+                    )
 
             source = discord.PCMVolumeTransformer(
                 discord.FFmpegPCMAudio(
