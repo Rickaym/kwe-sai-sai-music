@@ -55,31 +55,21 @@ class Track:
     auto_queued: bool = False
     artists: List[str] = field(default_factory=list)
     _partial: bool = False
-    _source: Optional[str] = None  # to pass in a predefined source
+    _source = None  # to pass in a predefined source
+    _audio_features = None # this property should be set by the player for spotify tracks
 
-    def prefetch(self):
-        """
-        Initializes source object in advance.
-        """
-        if self._source is not None:
-            raise Exception(f"{self.type} source is alread defined to be prefetched.")
-        print(f"[YouTube] Getting source for a spotify track {self.title}.")
-        if self.type is TrackType.SPOTIFY:
-            with YoutubeDL(YDL_PRESET) as ydl:
-                info = ydl.extract_info(  # type: ignore
-                    f"ytsearch:{self.title}",
-                    download=False,
-                )["entries"][0]
-            print(f"[YouTube] Found YouTube video {info['title']}.")
-            self._source = info["url"]  # type: ignore
-        else:
-            raise Exception(f"Unrecoginized {self.type} to get source from.")
+    def __hash__(self) -> int:
+        return hash(self.id)
 
-    @property
-    def source(self) -> str:
+    def get_source(self) -> str:
         if self._source is None:
-            self.prefetch()
-        return self._source
+            self.load_source()
+        return self._source  # type: ignore
+
+    def get_audio_features(self, spotify_api) -> dict:
+        if self._audio_features is None:
+            self.load_audio_features(spotify_api)
+        return self._audio_features  # type: ignore
 
     @staticmethod
     def spotify(track: dict, commander: Member, **kwargs):
@@ -102,6 +92,30 @@ class Track:
     @property
     def requested_by(self) -> str:
         return "ကွီးရွေးထားသည်။" if self.auto_queued else self.commander.mention
+
+    def load_source(self):
+        print(f"[YouTube] Getting source for a spotify track {self.title}.")
+        if self.type is TrackType.SPOTIFY:
+            with YoutubeDL(YDL_PRESET) as ydl:
+                info = ydl.extract_info(  # type: ignore
+                    f"ytsearch:{self.title}",
+                    download=False,
+                )["entries"][0]
+            print(f"[YouTube] Found YouTube video {info['title']}.")
+            self._source = info["url"]
+        else:
+            raise Exception(f"Unrecoginized {self.type} to get source from.")
+
+    def load_audio_features(self, spotify_api):
+        if self.type is TrackType.SPOTIFY and self._audio_features is None:
+            self._audio_features = spotify_api._get(f"audio-features/{self.id}")  # type: ignore
+
+    def load_all(self, spotify_api):
+        """
+        Non YouTube tracks need to be loaded before playing.
+        """
+        self.load_source()
+        self.load_audio_features(spotify_api)
 
     @staticmethod
     def youtube(track: dict, commander: Member, **kwargs):
