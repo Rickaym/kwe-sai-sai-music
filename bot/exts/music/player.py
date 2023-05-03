@@ -15,11 +15,6 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import List, Optional, Union
 
-NORMAL = 0
-LOOP = 1
-SUHUFFLE = 2
-STYLE_MAP = {0: "Normal", 1: "Loop", 2: "Shuffle"}
-
 SEEK = 0x6335
 
 YDL_PRESET = {
@@ -35,6 +30,13 @@ YDL_PRESET = {
     "default_search": "auto",
     "source_address": "0.0.0.0",
 }
+
+
+class PlayStyle(Enum):
+    LOOP_TRACK = "Loop Track"
+    LOOP_QUEUE = "Loop Queue"
+    NORMAL = "Normal"
+    SHUFFLE = "Shuffle"
 
 
 class TrackType(Enum):
@@ -54,9 +56,11 @@ class Track:
     commander: Member
     auto_queued: bool = False
     artists: List[str] = field(default_factory=list)
-    _partial: bool = False
-    _source = None  # to pass in a predefined source
-    _audio_features = None # this property should be set by the player for spotify tracks
+    _source: Optional[str] = None  # to pass in a predefined source
+    _audio_features = (
+        None  # this property should be set by the player for spotify tracks
+    )
+    _is_skipped = False
 
     def __hash__(self) -> int:
         return hash(self.id)
@@ -66,9 +70,21 @@ class Track:
             self.load_source()
         return self._source  # type: ignore
 
-    def get_audio_features(self, spotify_api) -> dict:
+    @property
+    def skipped(self):
+        return self._is_skipped
+
+    @skipped.setter
+    def skipped(self, value: bool):
+        """
+        Set the track as skipped.
+        This information is useful for auto-queue system.
+        """
+        self._is_skipped = value
+
+    async def get_audio_features(self, spotify_api) -> dict:
         if self._audio_features is None:
-            self.load_audio_features(spotify_api)
+            await self.load_audio_features(spotify_api)
         return self._audio_features  # type: ignore
 
     @staticmethod
@@ -106,16 +122,16 @@ class Track:
         else:
             raise Exception(f"Unrecoginized {self.type} to get source from.")
 
-    def load_audio_features(self, spotify_api):
+    async def load_audio_features(self, spotify_api):
         if self.type is TrackType.SPOTIFY and self._audio_features is None:
-            self._audio_features = spotify_api._get(f"audio-features/{self.id}")  # type: ignore
+            self._audio_features = await spotify_api.async__get(f"audio-features/{self.id}")  # type: ignore
 
-    def load_all(self, spotify_api):
+    async def load_all(self, spotify_api):
         """
-        Non YouTube tracks need to be loaded before playing.
+        Non YouTube tracks need source and audio_features to be loaded before playing.
         """
+        await self.load_audio_features(spotify_api)
         self.load_source()
-        self.load_audio_features(spotify_api)
 
     @staticmethod
     def youtube(track: dict, commander: Member, **kwargs):
@@ -150,7 +166,7 @@ class MusicSession:
         self.controller: Optional[Union[WebhookMessage, Interaction]] = None
 
         self._voice_client = None
-        self._play_style: int = NORMAL
+        self._play_style: PlayStyle = PlayStyle.NORMAL
         self._started_song_at = None
         self._schedule = [
             None,
@@ -182,7 +198,7 @@ class MusicSession:
         """
         Returns the track that is second in queue
         """
-        if self._play_style == NORMAL:
+        if self._play_style is PlayStyle.NORMAL:
             if self.at + 1 >= len(self.queue):
                 return None
             return self.queue[self.at + 1]
@@ -198,7 +214,7 @@ class MusicSession:
         return self._play_style
 
     @style.setter
-    def style(self, value):
+    def style(self, value: PlayStyle):
         self._play_style = value
 
     @property
@@ -219,6 +235,9 @@ class MusicSession:
         self.queue = [self.queue[self.at]]
         self.at = 0
 
+    def is_queue_remaining(self):
+        return len(self.remaining_tracks) > 1 or self._play_style in (PlayStyle.LOOP_QUEUE, PlayStyle.LOOP_TRACK)
+
     def total_time(self) -> int:
         return sum(t.duration for t in self.remaining_tracks)
 
@@ -232,14 +251,28 @@ class MusicSession:
         else:
             self.queue.extend(tracks)
 
-    def next_track(self):
-        self._started_song_at = datetime.utcnow()
-        if self._play_style == NORMAL:
-            self.at += 1
-        elif self._play_style == LOOP:
-            pass
+    def get_next_song_index(self, offset: int = 1):
+        """
+        Get the index of the next song to play.
+        """
+        if self._play_style is PlayStyle.NORMAL:
+            next_at = self.at + offset
+        elif self._play_style is PlayStyle.LOOP_TRACK:
+            next_at = self.at
+        elif self._play_style is PlayStyle.LOOP_QUEUE:
+            next_at = (self.at + offset) % len(self.queue)
+        elif self._play_style is PlayStyle.SHUFFLE:
+            next_at = random.randint(0, len(self.queue) - 2)
         else:
-            self.at = random.randint(0, len(self.queue) - 1)
+            raise Exception("Unrecognized play style")
+        return next_at
+
+    def set_next_track(self, offset: int = 1):
+        """
+        Set the next track to play.
+        """
+        self._started_song_at = datetime.utcnow()
+        self.at = self.get_next_song_index(offset)
 
     def pause(self):
         self.voice_client.pause()
@@ -302,11 +335,18 @@ class MusicSession:
         )
         t_hor, t_min, t_sec = self.format_duration(self.total_time())
         embed.add_field(name="⏰ Total Duration", value=f"`{t_hor}:{t_min}:{t_sec}`")
+        if self.style == PlayStyle.SHUFFLE:
+            mode = '🔀'
+        elif self.style is PlayStyle.LOOP_QUEUE:
+            mode = '🔁'
+        elif self.style is PlayStyle.LOOP_TRACK:
+            mode ='🔂'
+        else:
+            mode = '▶️'
+
         embed.add_field(
-            name="Loop",
-            value=f"**`{'❌':^5}`**"
-            if STYLE_MAP[self.style] == "Normal"
-            else f"**`{'✅':^5}`**",
+            name="Mode",
+            value=f"**`{mode:^5}`**"
         )
         embed.add_field(
             name="Volume", value=f"**`{f'{round(self.volume*200)} %':^9}`**"
@@ -317,11 +357,10 @@ class MusicSession:
         )
         embed.add_field(
             name="Next-Up",
-            value=self.upcoming_track.title[:8] + "..."
-            if self.upcoming_track is not None
+            value=f"{self.at+2}. {self.upcoming_track.title}"
+            if self.upcoming_track
             else f"`{'🚫':^9}`",
         )
-        embed.add_field(name="Requested By", value=self.now_playing.requested_by)
 
         queue = ""
         i = 0

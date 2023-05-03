@@ -14,27 +14,14 @@ from discord import Guild
 from discord.commands import slash_command, Option
 from discord.ext import commands
 from spotipy.oauth2 import SpotifyClientCredentials
-from spotipy import Spotify
+from bot.exts.music.asyncspotify import AsyncSpotify
 from os import getenv
 
-from bot.exts.music.player import LOOP, SEEK, Track, MusicSession, YDL_PRESET, TrackType
+from bot.exts.music.player import PlayStyle, Track, MusicSession, YDL_PRESET, TrackType
 
 """
 By Ricky MY
 """
-
-NUMBER_MAP = {
-    0: ":zero:",
-    1: ":one:",
-    2: ":two:",
-    3: ":three:",
-    4: ":four:",
-    5: ":five:",
-    6: ":six:",
-    7: ":seven:",
-    8: ":eight:",
-    9: ":nine:",
-}
 
 
 def get_voice_checker(within_same_channel=True, connection=True):
@@ -67,7 +54,7 @@ def get_voice_checker(within_same_channel=True, connection=True):
     return inner
 
 
-def random_shift(value, max_shift=0.2, min_shift=-0.2):
+def random_shift(value, max_shift=0.15, min_shift=-0.15):
     value += random.uniform(min_shift, max_shift)
     # To ensure that a stays between 0 and 1
     return max(0, min(value, 1))
@@ -93,34 +80,28 @@ class Music(commands.Cog):
 
         self.queues: Dict[int, MusicSession] = {}
 
-        client_credentials_manager = SpotifyClientCredentials(
+        spotify_client_credentials_manager = SpotifyClientCredentials(
             client_id=getenv("SPOTIFY_CLIENT_ID"),
             client_secret=getenv("SPOTIFY_CLIENT_SECRET"),
         )
 
-        self.spotify = Spotify(client_credentials_manager=client_credentials_manager)
+        self.spotify = AsyncSpotify(
+            self.bot.loop, client_credentials_manager=spotify_client_credentials_manager
+        )
 
     async def search_spotify(self, commander: Member, track: str) -> List[Track]:
-        def sync_search_spotify():
-            queue: List[Dict[str, Any]]
-            print(f"[Spotify] Fetching {track} items.")
-            if track.startswith("https://open.spotify.com/playlist"):
-                queue = self.spotify.playlist_items(playlist_id=track)["items"]  # type: ignore
-            elif track.startswith("https://open.spotify.com/album"):
-                queue = self.spotify.album_tracks(track)["items"]  # type: ignore
-            else:
-                queue = [self.spotify.track(track)]  # type: ignore
+        queue: List[Dict[str, Any]]
+        print(f"[Spotify] Fetching {track} items.")
+        if track.startswith("https://open.spotify.com/playlist"):
+            queue = await self.spotify.async_playlist_items(playlist_id=track)["items"]  # type: ignore
+        elif track.startswith("https://open.spotify.com/album"):
+            queue = await self.spotify.async_album_tracks(track)["items"]  # type: ignore
+        else:
+            queue = [await self.spotify.async_track(track)]  # type: ignore
 
-            print(f"[Spotify] Fetched {len(queue)} from {track}.")
+        print(f"[Spotify] Fetched {len(queue)} from {track}.")
 
-            tracks = [Track.spotify(track, commander) for track in queue]
-
-            # load the source and audio features for the first track
-            tracks[0].load_all(self.spotify)
-
-            return tracks
-
-        return await self.bot.loop.run_in_executor(None, sync_search_spotify)
+        return [Track.spotify(track, commander) for track in queue]
 
     async def search_yt(self, commander: Member, track_ids: List[str]) -> List[Track]:
         """
@@ -164,8 +145,11 @@ class Music(commands.Cog):
             await ctx.respond("skip ဖို့သီချင်းအရင်ဖွင့်လေကွာ။")
             return
 
+        if amount == 1:
+            session.now_playing.skipped = True
+
         try:
-            session.queue[session.at + amount]
+            session.set_next_track(amount)
         except IndexError:
             await ctx.respond("Skip စရာမရှိပါ။")
             return
@@ -192,72 +176,61 @@ class Music(commands.Cog):
         Walking through the queue of songs
         """
         session = self.queues.get(guild.id)
-
         if session is None:
             return
-        elif (
-            len(session.remaining_tracks) > 1
-            or session.style == LOOP
-            or session._schedule[0] is not None
-        ):  # There are still songs left to be played.
-            await session.ensure_voice_connection()
 
-            _ffmpeg_pre = dict(self.ffmpeg_pre)
-            if session._schedule[0] == SEEK:
-                _ffmpeg_pre["options"] = f"-vn -ss {session._schedule[1]}"
-                session._schedule = [None, None]
-            else:
-                session.next_track()
-                asyncio.run_coroutine_threadsafe(
-                    self.check_auto_queue(session), self.bot.loop
-                )
-                asyncio.run_coroutine_threadsafe(
-                    session.update_controller(), self.bot.loop
-                )
-                upcoming = session.upcoming_track
-                if upcoming and upcoming.type is TrackType.SPOTIFY:
-                    # prefetching upcoming track source & audio features
-                    self.bot.loop.run_in_executor(
-                        None, upcoming.load_all, self.spotify
-                    )
-
-            source = discord.PCMVolumeTransformer(
-                discord.FFmpegPCMAudio(
-                    source=await self.bot.loop.run_in_executor(
-                        None, session.now_playing.get_source
-                    ),
-                    **_ffmpeg_pre,
-                    executable=self.ffmpeg_executable,
-                ),
-                volume=session.volume,
-            )
-
-            try:
-                session.voice_client.play(
-                    source,
-                    after=lambda e: asyncio.run_coroutine_threadsafe(
-                        self.play_next(guild), self.bot.loop
-                    ),
-                )
-            except ClientException:
-                if self.queues.get(guild.id) is not None:
-                    del self.queues[guild.id]
-
-                print(f"[Move] Job {guild.id} got forcefully closed")
-                return
-            else:
-                print(
-                    f"[Move] Now playing {session.now_playing.title} for job {session.guild.name}"
-                )
-        else:  # There are no more songs left to be played.
+        if not session.is_queue_remaining():
+            # there are no more songs left to be played.
+            # we will wait 10 seconds to see if anything would be played
             time.sleep(10)
-            if not (len(session.remaining_tracks) > 1 or session.style == LOOP):
+
+            if not session.is_queue_remaining():
                 print(f"[Move] Job {guild.id} finished")
                 await session.disconnect()
                 if self.queues.get(guild.id) is not None:
-                    del self.queues[guild.id]
+                    self.queues.pop(guild.id)
             else:
                 await self.play_next(guild)
+            return
+
+        # there are still songs left to be played.
+        await session.ensure_voice_connection()
+
+        session.set_next_track()
+
+        source = discord.PCMVolumeTransformer(
+            discord.FFmpegPCMAudio(
+                source=await self.bot.loop.run_in_executor(
+                    None, session.now_playing.get_source
+                ),
+                **self.ffmpeg_pre,
+                executable=self.ffmpeg_executable,
+            ),
+            volume=session.volume,
+        )
+
+        try:
+            session.voice_client.play(
+                source, after=lambda e: self.bot.loop.create_task(self.play_next(guild))
+            )
+        except ClientException:
+            if self.queues.get(guild.id) is not None:
+                self.queues.pop(guild.id)
+
+            print(f"[Move] Job {guild.id} got forcefully closed")
+            return
+        else:
+            print(
+                f"[Move] Now playing {session.now_playing.title} for job {session.guild.name}"
+            )
+
+        upcoming = session.upcoming_track
+        if upcoming and upcoming.type is TrackType.SPOTIFY:
+            # prefetching upcoming track source & audio features
+            self.bot.loop.create_task(upcoming.load_all(self.spotify))
+
+        self.bot.loop.create_task(self.check_auto_queue(session))
+        self.bot.loop.create_task(session.update_controller())
 
     async def start_queue(self, guild: Guild):
         """
@@ -277,66 +250,63 @@ class Music(commands.Cog):
         )
         session.start_queue()
         session.voice_client.play(
-            source,
-            after=lambda e: asyncio.run_coroutine_threadsafe(
-                self.play_next(guild), self.bot.loop
-            ),
+            source, after=lambda e: self.bot.loop.create_task(self.play_next(guild))
         )
         print(f"[Start] Now playing {session.now_playing.title} for job {guild.name}")
 
     async def get_recommendations(
         self, commander: Member, tracks: List[Track], limit=3
     ) -> List[Track]:
+        if not tracks:
+            return []
+
         if len(tracks) > 100:
             # get the first 100 unique tracks
             tracks = list(set(tracks[:100]))
 
-        def sync_get_recommendations():
-            tracks_info = {
-                track.id: track.get_audio_features(self.spotify)
-                for track in tracks
-                if track.type is TrackType.SPOTIFY
-            }
+        tracks_info = {
+            track.id: await track.get_audio_features(self.spotify)
+            for track in tracks
+            if track.type is TrackType.SPOTIFY and not track.skipped
+        }
 
-            print(
-                f"[Spotify] Getting recommendations for auto-queue based on {len(tracks_info)} tracks."
+        print(
+            f"[Spotify] Getting recommendations for auto-queue based on {len(tracks_info)} tracks."
+        )
+
+        # Get the average audio features of the tracks in the playlist
+        target_features = {}
+
+        # all supported features for recommendations are set here
+        for feature_name in [
+            "danceability",
+            "energy",
+            "valence",
+            "instrumentalness",
+        ]:
+            target_features[f"target_{feature_name}"] = random_shift(
+                sum([track[feature_name] for track in tracks_info.values()])
+                / len(tracks_info)
             )
 
-            # Get the average audio features of the tracks in the playlist
-            target_features = {}
+        print(
+            f"[Spotify] Generated average audio features based '{', '.join(target_features.keys())}' on the tracks."
+        )
 
-            # all supported features for recommendations are set here
-            for feature_name in [
-                "danceability",
-                "energy",
-                "valence",
-                "instrumentalness",
-            ]:
-                target_features[f"target_{feature_name}"] = random_shift(
-                    sum([track[feature_name] for track in tracks_info.values()])
-                    / len(tracks_info)
-                )
+        # 5 random track ids from the playlist
+        seed_tracks = random.sample(tracks_info.keys(), min(5, len(tracks_info)))
 
-            print(
-                f"[Spotify] Generated average audio features based '{', '.join(target_features.keys())}' on the tracks."
-            )
-
-            # 5 random track ids from the playlist
-            seed_tracks = random.sample(tracks_info.keys(), min(5, len(tracks_info)))
-
-            # Get the recommended tracks based on the average audio features
-            queue = self.spotify.recommendations(  # type: ignore
+        # Get the recommended tracks based on the average audio features
+        queue = (
+            await self.spotify.async_recommendations(  # type: ignore
                 seed_tracks=seed_tracks, limit=limit, **target_features
-            )["tracks"]
-            print(seed_tracks, target_features)
-            # Generate song recommendations based on the average audio features of the tracks in the playlist
-            print(f"[Spotify] Recommending {len(queue)} tracks as auto-queue.")
+            )
+        )["tracks"]
+        print(seed_tracks, target_features)
+        # Generate song recommendations based on the average audio features of the tracks in the playlist
+        print(f"[Spotify] Recommending {len(queue)} tracks as auto-queue.")
 
-            return [
-                Track.spotify(track, commander, auto_queued=True) for track in queue
-            ]
-
-        return await self.bot.loop.run_in_executor(None, sync_get_recommendations)
+        return [Track.spotify(track, commander, auto_queued=True) for track in queue]
 
     @slash_command(name="play")
     @commands.check(get_voice_checker(within_same_channel=False, connection=False))
@@ -348,6 +318,12 @@ class Music(commands.Cog):
         await ctx.defer()
         if track.startswith("https://open.spotify.com/"):
             prelude = await self.search_spotify(ctx.author, track)
+            # playlist tracks on auto-queue generate recommendations instantly
+            if auto_queue and len(prelude) > 1:
+                prelude = await self.get_recommendations(ctx.author, prelude)
+
+            # load the first track in the playlist
+            await prelude[0].load_all(self.spotify)
         else:
             if track.startswith("https"):
                 if not any(
@@ -393,12 +369,10 @@ class Music(commands.Cog):
                 )
             )
 
-        # setup session with a recommendation based queue
-        if auto_queue:
+        # setup session with a recommendation based queue if it's not a playlist
+        if auto_queue and len(prelude) == 1:
             print("[Spotify] Starting auto-queue mode. Getting recommendations.")
-            asyncio.run_coroutine_threadsafe(
-                self.check_auto_queue(session), self.bot.loop
-            )
+            self.bot.loop.create_task(self.check_auto_queue(session))
 
     @slash_command(name="queue")
     @commands.check(get_voice_checker(within_same_channel=False, connection=False))
@@ -413,6 +387,25 @@ class Music(commands.Cog):
 
         embed = session.get_queue_embed()
         session.controller = await ctx.respond(embed=embed)
+
+    @slash_command(name="mode")
+    @commands.check(get_voice_checker())
+    async def loop_song(
+        self,
+        ctx,
+        mode: Option(PlayStyle, description="အမျိုးအစား"),  # type: ignore
+    ):
+        """
+        သံစဉ်ကို loop ရန်။
+        """
+        session = self.queues.get(ctx.guild.id)
+        if session is None:
+            await ctx.respond(content="သံစဥ်အရင်ဖွင့်ပြီးမှငါ့လာပြော။")
+            return
+
+        session.style = mode
+        await ctx.respond(f"သံစဥ်ကို {session.style.value} ပြောင်းပြီးပါပြီး။")
+        await session.update_controller()
 
     @slash_command(name="save")
     @commands.check(get_voice_checker())
@@ -450,17 +443,17 @@ class Music(commands.Cog):
         ကွီးကိုပလစ်ခြင်း။
         """
         session = self.queues.get(ctx.guild.id)
+
         if session is None:
-            await ctx.respond("ငါ့မှာထွက်စရာနေရာမရှိပါ။")
-            return
+            return await ctx.respond("ငါ့မှာထွက်စရာနေရာမရှိပါ။")
+        else:
+            await ctx.respond("ဘိုင်းဘိုင်း ငမွှထိုး။")
 
         await session.disconnect()
         try:
             self.queues.pop(ctx.guild.id)
         except KeyError:
             pass
-
-        await ctx.respond("ဘိုင်းဘိုင်း ငမွှထိုး။")
 
     @slash_command(name="pause")
     @commands.check(get_voice_checker())
