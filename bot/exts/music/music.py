@@ -423,7 +423,8 @@ class Music(commands.Cog):
         if session is None:
             await ctx.respond(content="သံစဥ်အရင်ဖွင့်ပြီးမှငါ့လာပြော။")
             return
-        if session.style is PlayStyle.AUTO_QUEUE:
+
+        if PlayStyle.AUTO_QUEUE is mode:
             session.is_auto_queue = not session.is_auto_queue
             await ctx.respond(f"သံစဥ် auto-queue ကို {session.is_auto_queue} ပြောင်းပြီးပါပြီး။")
         else:
