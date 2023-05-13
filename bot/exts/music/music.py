@@ -200,8 +200,9 @@ class Music(commands.Cog):
         start_at = session.now_duration + seconds
         session._started_song_at -= datetime.timedelta(days=0, seconds=seconds)
         session.start_track_at = start_at
-        session.voice_client.stop()
         session.is_controller_moved = True
+
+        session.voice_client.stop()
 
         await ctx.respond(f"အိုကေ `{seconds}` seconds ကျော်ပြီးပါပြီ။!")
 
@@ -230,6 +231,7 @@ class Music(commands.Cog):
         if not session.is_queue_remaining():
             # there are no more songs left to be played.
             # we will wait 10 seconds to see if anything would be played
+            print("[Move] No tracks remaining, waiting 10 seconds to see if anything would be played")
             time.sleep(10)
 
             if not session.is_queue_remaining():
