@@ -278,7 +278,7 @@ class Music(commands.Cog):
             return
         else:
             print(
-                f"[Move] Now playing {session.now_playing.title} for job {session.guild.name}."
+                f"[Move] Now playing {session.now_playing.title} for job {session.guild.name} with the config as {ffmpeg_pre}."
             )
 
         upcoming = session.upcoming_track
