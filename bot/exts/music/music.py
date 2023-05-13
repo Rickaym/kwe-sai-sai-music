@@ -146,10 +146,12 @@ class Music(commands.Cog):
             return
 
         try:
-            session.set_next_track(-amount-1)  # offset for when the client stops
+            session.move_track_index(-amount)  # offset for when the client stops
         except IndexError:
             await ctx.respond("Rewind စရာမရှိပါ။")
             return
+
+        session.is_controller_moved = True
 
         session.voice_client.stop()
         await ctx.respond("အိုကေ။")
@@ -170,10 +172,12 @@ class Music(commands.Cog):
             session.now_playing.skipped = True
 
         try:
-            session.set_next_track(amount-1)  # offset for when the client stops
+            session.move_track_index(amount)
         except IndexError:
             await ctx.respond("Skip စရာမရှိပါ။")
             return
+
+        session.is_controller_moved = True
 
         session.voice_client.stop()
         await ctx.respond("အိုကေ။")
@@ -217,7 +221,11 @@ class Music(commands.Cog):
         # there are still songs left to be played.
         await session.ensure_voice_connection()
 
-        session.set_next_track()
+        # if the controller has been moved, we don't need to auto-move
+        if not session.is_controller_moved:
+            session.move_track_index(1)
+        else:
+            session.is_controller_moved = False
 
         source = discord.PCMVolumeTransformer(
             discord.FFmpegPCMAudio(

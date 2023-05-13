@@ -165,6 +165,7 @@ class MusicSession:
         self.commander: Member = ctx.author
         self.volume = 0.5
         self.controller: Optional[Union[WebhookMessage, Interaction]] = None
+        self.is_controller_moved = False  # if there has been a skip or a rewind
 
         self._voice_client = None
         self._play_style: PlayStyle = PlayStyle.NORMAL
@@ -268,7 +269,7 @@ class MusicSession:
             raise Exception("Unrecognized play style")
         return next_at
 
-    def set_next_track(self, offset: int = 1):
+    def move_track_index(self, offset: int):
         """
         Set the next track to play.
         """
