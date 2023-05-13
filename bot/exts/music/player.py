@@ -159,6 +159,7 @@ class MusicSession:
         self.ctx = ctx
 
         self.at: int = 0
+        self.start_track_at = 0
         self.voice_channel: VoiceChannel = ctx.author.voice.channel
         self.guild: Guild = ctx.guild
         self.cmd_channel: TextChannel = ctx.channel
@@ -169,11 +170,7 @@ class MusicSession:
 
         self._voice_client = None
         self._play_style: PlayStyle = PlayStyle.NORMAL
-        self._started_song_at = None
-        self._schedule = [
-            None,
-            None,
-        ]
+        self._started_song_at: datetime = None  # type: ignore
         self._last_paused = None
 
     @property
