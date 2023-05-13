@@ -135,7 +135,7 @@ class Music(commands.Cog):
 
     @slash_command(name="rewind")
     @commands.check(get_voice_checker())
-    async def skip(self, ctx, amount: Option(int, default=1, description="ကျော်ခြင်သော သံစဉ်ခု။", required=False)):  # type: ignore
+    async def rewind(self, ctx, amount: Option(int, default=1, description="ကျော်ခြင်သော သံစဉ်ခု။", required=False)):  # type: ignore
         """
         နောက်ပြန်ကျောခြင်းခွခြင်း။
         """
