@@ -117,7 +117,7 @@ class Music(commands.Cog):
             with YoutubeDL(_ydl_preset) as ydl:
                 for item in track_ids:
                     print(f"[YouTube] Searching for {item}")
-                    info = ydl.extract_info("ytsearch:" + item, download=False)["entries"][0]  # type: ignore
+                    info = ydl.extract_info(("ytsearch:" if not item.startswith("https://") else "") + item, download=False)["entries"][0]  # type: ignore
                     queue.append(info)
                     print(
                         f"[YouTube] Found results for {item}, fetching first response '{info['title']}'"
@@ -434,7 +434,9 @@ class Music(commands.Cog):
 
         if PlayStyle.AUTO_QUEUE is mode:
             session.is_auto_queue = not session.is_auto_queue
-            await ctx.respond(f"သံစဥ် auto-queue ကို {session.is_auto_queue} ပြောင်းပြီးပါပြီး။")
+            await ctx.respond(
+                f"သံစဥ် auto-queue ကို {session.is_auto_queue} ပြောင်းပြီးပါပြီး။"
+            )
         else:
             session.style = mode
             await ctx.respond(f"သံစဥ်ကို {session.style.value} ပြောင်းပြီးပါပြီး။")
