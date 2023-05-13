@@ -117,7 +117,10 @@ class Music(commands.Cog):
             with YoutubeDL(_ydl_preset) as ydl:
                 for item in track_ids:
                     print(f"[YouTube] Searching for {item}")
-                    info = ydl.extract_info(("ytsearch:" if not item.startswith("https://") else "") + item, download=False)["entries"][0]  # type: ignore
+                    is_url = item.startswith("https://")
+                    info = ydl.extract_info(("ytsearch:" if not is_url else "") + item, download=False)
+                    if not is_url:
+                        info = info["entries"][0]  # type: ignore
                     queue.append(info)
                     print(
                         f"[YouTube] Found results for {item}, fetching first response '{info['title']}'"
