@@ -191,18 +191,19 @@ class Music(commands.Cog):
         await ctx.defer()
         session = self.queues.get(ctx.guild.id)
         if session is None:
-            await ctx.send("❗ There are no records to skip")
+            await ctx.respond("Seek ဖို့သီချင်းအရင်ဖွင့်လေကွာ။")
             return
         if seconds > (session.now_playing.duration - session.now_duration):
-            await ctx.send("❗ You can't skip beyond the duration of the song.")
+            await ctx.respond("Seek ဖို့သီချင်းကအဲ့လောက်မရှည်ဘူးကွ။")
             return
 
         start_at = session.now_duration + seconds
         session._started_song_at -= datetime.timedelta(days=0, seconds=seconds)
         session.start_track_at = start_at
         session.voice_client.stop()
+        session.is_controller_moved = True
 
-        await ctx.send(f"Fast forwarded {seconds} seconds!")
+        await ctx.respond(f"အိုကေ `{seconds}` seconds ကျော်ပြီးပါပြီ။!")
 
     async def check_auto_queue(self, session: MusicSession):
         if session.is_auto_queue and session.at + 2 >= len(session.queue):
