@@ -252,7 +252,8 @@ class Music(commands.Cog):
 
         ffmpeg_pre = dict(self.ffmpeg_pre)
         if session.start_track_at != 0:
-            ffmpeg_pre["options"] = f"-vn -ss {session.start_track_at}"
+            start_track_at = time.strftime("%H:%M:%S", time.gmtime(session.start_track_at))
+            ffmpeg_pre["options"] = f"-vn -ss {start_track_at}"
             session.start_track_at = 0
 
         source = discord.PCMVolumeTransformer(
