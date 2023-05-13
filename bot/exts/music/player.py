@@ -276,6 +276,7 @@ class MusicSession:
             raise IndexError("No more tracks in queue")
         else:
             self.at = idx
+        print(f"[{self.guild.name}] Moved to track", self.at)
 
     def pause(self):
         self.voice_client.pause()
