@@ -146,7 +146,7 @@ class Music(commands.Cog):
             return
 
         try:
-            session.set_next_track(-amount)
+            session.set_next_track(-amount-1)  # offset for when the client stops
         except IndexError:
             await ctx.respond("Rewind စရာမရှိပါ။")
             return
@@ -170,7 +170,7 @@ class Music(commands.Cog):
             session.now_playing.skipped = True
 
         try:
-            session.set_next_track(amount)
+            session.set_next_track(amount-1)  # offset for when the client stops
         except IndexError:
             await ctx.respond("Skip စရာမရှိပါ။")
             return
