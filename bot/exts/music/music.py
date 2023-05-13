@@ -133,6 +133,27 @@ class Music(commands.Cog):
 
         return await self.bot.loop.run_in_executor(None, search_yt_inner)
 
+    @slash_command(name="rewind")
+    @commands.check(get_voice_checker())
+    async def skip(self, ctx, amount: Option(int, default=1, description="ကျော်ခြင်သော သံစဉ်ခု။", required=False)):  # type: ignore
+        """
+        နောက်ပြန်ကျောခြင်းခွခြင်း။
+        """
+        await ctx.defer()
+        session = self.queues.get(ctx.guild.id)
+        if session is None:
+            await ctx.respond("Rewind ဖို့သီချင်းအရင်ဖွင့်လေကွာ။")
+            return
+
+        try:
+            session.set_next_track(-amount)
+        except IndexError:
+            await ctx.respond("Rewind စရာမရှိပါ။")
+            return
+
+        session.voice_client.stop()
+        await ctx.respond("အိုကေ။")
+
     @slash_command(name="skip")
     @commands.check(get_voice_checker())
     async def skip(self, ctx, amount: Option(int, default=1, description="ကျော်ခြင်သော သံစဉ်ခု။", required=False)):  # type: ignore
@@ -158,7 +179,7 @@ class Music(commands.Cog):
         await ctx.respond("အိုကေ။")
 
     async def check_auto_queue(self, session: MusicSession):
-        if session.auto_queue and session.at + 2 >= len(session.queue):
+        if session.is_auto_queue and session.at + 2 >= len(session.queue):
             print(
                 f"[{session.ctx.guild.name}] Currently at {session.at}/{len(session.queue)} so adding 3 recommendations."
             )
@@ -396,15 +417,18 @@ class Music(commands.Cog):
         mode: Option(PlayStyle, description="အမျိုးအစား"),  # type: ignore
     ):
         """
-        သံစဉ်ကို loop ရန်။
+        သံစဉ်များလာပုံပြောင်းရန်။
         """
         session = self.queues.get(ctx.guild.id)
         if session is None:
             await ctx.respond(content="သံစဥ်အရင်ဖွင့်ပြီးမှငါ့လာပြော။")
             return
-
-        session.style = mode
-        await ctx.respond(f"သံစဥ်ကို {session.style.value} ပြောင်းပြီးပါပြီး။")
+        if session.style is PlayStyle.AUTO_QUEUE:
+            session.is_auto_queue = not session.is_auto_queue
+            await ctx.respond(f"သံစဥ် auto-queue ကို {session.is_auto_queue} ပြောင်းပြီးပါပြီး။")
+        else:
+            session.style = mode
+            await ctx.respond(f"သံစဥ်ကို {session.style.value} ပြောင်းပြီးပါပြီး။")
         await session.update_controller()
 
     @slash_command(name="save")
@@ -476,6 +500,9 @@ class Music(commands.Cog):
     @slash_command(name="resume")
     @commands.check(get_voice_checker())
     async def resume(self, ctx):
+        """
+        ရပ်ဆိုင်းမှုပယ်ဖျက်ခြင်း။
+        """
         session = self.queues.get(ctx.guild.id)
         voice: VoiceClient = utils_get(self.bot.voice_clients, guild=ctx.guild)  # type: ignore
         if not voice.is_playing():

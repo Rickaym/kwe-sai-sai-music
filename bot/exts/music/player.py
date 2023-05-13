@@ -37,6 +37,7 @@ class PlayStyle(Enum):
     LOOP_QUEUE = "Loop Queue"
     NORMAL = "Normal"
     SHUFFLE = "Shuffle"
+    AUTO_QUEUE = "Auto Queue"
 
 
 class TrackType(Enum):
@@ -154,7 +155,7 @@ class MusicSession:
         self, queue: List[Track], ctx: ApplicationContext, auto_queue: bool
     ) -> None:
         self.queue = queue
-        self.auto_queue = auto_queue
+        self.is_auto_queue = auto_queue
         self.ctx = ctx
 
         self.at: int = 0
@@ -245,7 +246,7 @@ class MusicSession:
         return self.queue.index(track)
 
     def add(self, *tracks: Track):
-        if self.auto_queue:
+        if self.is_auto_queue:
             for t in tracks:
                 self.queue.insert(self.at + 1, t)
         else:
@@ -272,7 +273,11 @@ class MusicSession:
         Set the next track to play.
         """
         self._started_song_at = datetime.utcnow()
-        self.at = self.get_next_song_index(offset)
+        idx = self.get_next_song_index(offset)
+        if idx >= len(self.queue) or idx < 0:
+            raise IndexError("No more tracks in queue")
+        else:
+            self.at = idx
 
     def pause(self):
         self.voice_client.pause()
@@ -383,7 +388,7 @@ class MusicSession:
             value=f"{queue}{f'... and {remainder} more.' if remainder >= 1 else ''}",
             inline=False,
         )
-        if self.auto_queue:
+        if self.is_auto_queue:
             embed.set_footer(text=f"🔁 Auto queue is enabled.")
         return embed
 
