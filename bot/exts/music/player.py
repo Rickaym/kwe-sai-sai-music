@@ -89,6 +89,22 @@ class Track:
         return self._audio_features  # type: ignore
 
     @staticmethod
+    def raw(source: str, commander: Member, **kwargs):
+        _, title, *url = source.split(":")
+        url = ''.join(url)
+        return Track(
+            title=title,
+            artists=[],
+            url=url,
+            thumbnail="https://google.com/",
+            duration=0,
+            type=TrackType.SPOTIFY,
+            id=str(hash(url)),
+            commander=commander,
+            **kwargs,
+        )
+
+    @staticmethod
     def spotify(track: dict, commander: Member, **kwargs):
         # Recommended track object dicts do not come under "track" key but
         # normal track objects do.

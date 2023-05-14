@@ -376,7 +376,9 @@ class Music(commands.Cog):
         """
         print(f"[{ctx.guild.name}] {ctx.author.name} is playing {track}")
         await ctx.defer()
-        if track.startswith("https://open.spotify.com/"):
+        if track.startswith("raw:"):
+            prelude = [Track.raw(track, ctx.author)]
+        elif track.startswith("https://open.spotify.com/"):
             prelude = await self.search_spotify(ctx.author, track)
             # playlist tracks on auto-queue generate recommendations instantly
             if auto_queue and len(prelude) > 1:
