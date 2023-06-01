@@ -93,9 +93,9 @@ class Music(commands.Cog):
         queue: List[Dict[str, Any]]
         print(f"[Spotify] Fetching {track} items.")
         if track.startswith("https://open.spotify.com/playlist"):
-            queue = await self.spotify.async_playlist_items(playlist_id=track)["items"]  # type: ignore
+            queue = (await self.spotify.async_playlist_items(playlist_id=track))["items"]  # type: ignore
         elif track.startswith("https://open.spotify.com/album"):
-            queue = await self.spotify.async_album_tracks(track)["items"]  # type: ignore
+            queue = (await self.spotify.async_album_tracks(track))["items"]  # type: ignore
         else:
             queue = [await self.spotify.async_track(track)]  # type: ignore
 
